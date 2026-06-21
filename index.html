@@ -140,6 +140,13 @@
   .spotcap{position:absolute;bottom:9%;left:0;right:0;text-align:center;font-family:Georgia,serif;color:#ffe9b8;font-size:22px;text-shadow:0 2px 8px #000}
   .spotcap small{display:block;font-size:15px;color:#bcd;letter-spacing:.04em;margin-top:4px}
 
+  /* эффект удара */
+  .hitfx{position:fixed;z-index:78;transform:translate(-50%,-50%);pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .hitslash{font-size:42px;filter:drop-shadow(0 0 6px #000);animation:hitpop .55s ease-out forwards}
+  .hitnum{font-family:Georgia,serif;font-weight:bold;font-size:23px;color:#ff5a5a;text-shadow:0 1px 4px #000,0 0 8px #b3302a;animation:hitrise .95s ease-out forwards}
+  @keyframes hitpop{0%{transform:scale(.3) rotate(-25deg);opacity:0}30%{transform:scale(1.35) rotate(0);opacity:1}100%{transform:scale(1) rotate(0);opacity:0}}
+  @keyframes hitrise{0%{transform:translateY(10px);opacity:0}25%{opacity:1}100%{transform:translateY(-40px);opacity:0}}
+
   /* inspector */
   #inspector{position:fixed;inset:0;z-index:88;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(4,8,12,.74)}
   #inspector.show{display:flex}
@@ -506,22 +513,26 @@ function strike(A,B,defSide){
   const dealt=applyDamage(B, A.atk);
   logMsg(`<b>${A.def.n}</b> (⚔${A.atk}) бьёт <b>${B.def.n}</b>: <span class="dmg">−${dealt} ❤</span> (броня ${B.def.d}).`);
   if(A.kw.has('o') && B.dead){ const ex=dealt-hpBefore; if(ex>0){ dealCommander(defSide, ex); logMsg(`💥 Натиск <b>${A.def.n}</b>: ${ex} по Командиру.`); } }
+  return dealt;
 }
 function resolveCombat(){
   if(game.phase==='resolving') return;
   game.phase='resolving';
   const atk=game.attacker, def=opp(atk);
   const involved=new Set();
+  const fx=[];
   for(const aUid in game.targets){
     const A=find(atk, +aUid); if(!A) continue;
     for(const spec of game.targets[aUid]){
       if(A.dead) break;
       involved.add(A);
-      if(spec.t==='cmd'){ dealCommander(def, A.atk); logMsg(`<b>${A.def.n}</b> бьёт по Командиру: <span class="dmg">${A.atk}</span>.`); }
+      if(spec.t==='cmd'){ dealCommander(def, A.atk); logMsg(`<b>${A.def.n}</b> бьёт по Командиру: <span class="dmg">${A.atk}</span>.`); fx.push({aUid:A.uid,aSide:atk,tt:'cmd',tSide:def,dmg:A.atk,died:false}); }
       else{
         let B=find(def, spec.uid);
-        if(!B || B.dead){ if(aliveCount(def)===0){ dealCommander(def, A.atk); logMsg(`<b>${A.def.n}</b> добивает Командира: <span class="dmg">${A.atk}</span>.`); } else logMsg(`<b>${A.def.n}</b>: цель уже пала.`); continue; }
-        involved.add(B); strike(A,B,def);
+        if(!B || B.dead){ if(aliveCount(def)===0){ dealCommander(def, A.atk); logMsg(`<b>${A.def.n}</b> добивает Командира: <span class="dmg">${A.atk}</span>.`); fx.push({aUid:A.uid,aSide:atk,tt:'cmd',tSide:def,dmg:A.atk,died:false}); } else logMsg(`<b>${A.def.n}</b>: цель уже пала.`); continue; }
+        involved.add(B);
+        const dealt=strike(A,B,def);
+        fx.push({aUid:A.uid,aSide:atk,tt:'unit',tUid:B.uid,tSide:def,dmg:dealt,died:B.dead});
       }
     }
   }
@@ -529,8 +540,8 @@ function resolveCombat(){
     if(!u.dead && u.tookDamage>0 && u.kw.has('f')){ u.atk++; logMsg(`🔥 <b>${u.def.n}</b> в ярости: +1 ⚔ (теперь ${u.atk}).`); }
     u.tookDamage=0;
   });
-  removeDead(); render();
-  setTimeout(endCombatAndRound, 450);
+  netCombatFx(fx, atk);
+  playCombatFx(fx, ()=>{ removeDead(); render(); setTimeout(endCombatAndRound, 250); });
 }
 function dealCommander(side, dmg){ game[side].hp=Math.max(0,game[side].hp-dmg); logMsg(`<span class="dmg">−${dmg} ❤</span> Командиру (${sideName(side)}).`); }
 function removeDead(){
@@ -717,6 +728,47 @@ document.addEventListener('contextmenu', e=>{
   }
 });
 
+/* ===================== ЭФФЕКТЫ БОЯ ===================== */
+function cardByUid(side, uid){
+  return [...document.querySelectorAll('#meBoard .card, #foeBoard .card')].find(c=>c.__unit && c.__unit.uid===uid && c.__side===side);
+}
+function fxImpact(x,y,dmg,died){
+  const slash = died?'💀':(dmg>0?'💥':'🛡️');
+  const num = dmg>0?('−'+dmg+'❤'):'блок';
+  const b=document.createElement('div'); b.className='hitfx';
+  b.innerHTML=`<span class="hitslash">${slash}</span><span class="hitnum"${dmg>0?'':' style="color:#9fd6ff"'}>${num}</span>`;
+  b.style.left=x+'px'; b.style.top=y+'px'; document.body.appendChild(b);
+  setTimeout(()=>b.remove(), 950);
+}
+function fxLunge(el, tx, ty){
+  const r=el.getBoundingClientRect(); const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  let dx=tx-cx, dy=ty-cy; const d=Math.hypot(dx,dy)||1; dx=dx/d*28; dy=dy/d*28;
+  el.animate([{transform:'translate(0,0)'},{transform:`translate(${dx}px,${dy}px)`,offset:.42},{transform:'translate(0,0)'}],{duration:380,easing:'cubic-bezier(.3,1.4,.5,1)'});
+}
+function fxShake(el, died){
+  el.animate([{transform:'translate(0,0)'},{transform:'translate(-6px,3px) rotate(-2deg)'},{transform:'translate(6px,-2px) rotate(2deg)'},{transform:'translate(-4px,1px)'},{transform:'translate(0,0)'}],{duration:360});
+  el.animate([{filter:'brightness(2.4) saturate(1.4)'+(died?' grayscale(.4)':'')},{filter:'brightness(1)'}],{duration:420});
+}
+function playCombatFx(fx, done){
+  if(!fx || !fx.length){ if(done) done(); return; }
+  const gap = fx.length>6?130:190;
+  let i=0;
+  const step=()=>{
+    if(i>=fx.length){ if(done) setTimeout(done, 220); return; }
+    const e=fx[i++];
+    const aEl=cardByUid(e.aSide, e.aUid);
+    const tEl = e.tt==='cmd' ? document.getElementById(e.tSide==='foe'?'foeBanner':'meBanner') : cardByUid(e.tSide, e.tUid);
+    if(tEl){
+      const tr=tEl.getBoundingClientRect(); const tx=tr.left+tr.width/2, ty=tr.top+tr.height/2;
+      if(aEl) fxLunge(aEl, tx, ty);
+      setTimeout(()=>{ if(tEl.isConnected){ fxShake(tEl, e.died); fxImpact(tx,ty,e.dmg,e.died); } }, 150);
+    }
+    setTimeout(step, gap);
+  };
+  step();
+}
+function netCombatFx(fx, atk){ if(net.mode==='host') net.conns.forEach(c=>{ if(c.open) c.send({t:'fx', fx, atk}); }); }
+
 /* ===================== UI ===================== */
 function logMsg(html){ game.log.unshift(html); if(game.log.length>80) game.log.length=80; document.getElementById('log').innerHTML=game.log.slice(0,60).map(x=>'• '+x).join('<br>'); }
 let toastT;
@@ -850,6 +902,7 @@ function joinAs(role, room){
       if(!msg) return;
       if(msg.t==='state'){ deserializeGame(msg.state); render(); }
       else if(msg.t==='spot'){ const u=findCardByUid(msg.side, msg.uid); if(u) showSpotlight(u, msg.side); }
+      else if(msg.t==='fx'){ playCombatFx(msg.fx, null); }
     });
     conn.on('close', ()=>{ setLobbyStatus('Связь с ДМ потеряна.'); openLobby(); });
     conn.on('error', ()=>{ setLobbyStatus('Не удалось подключиться. Проверь код.'); });
