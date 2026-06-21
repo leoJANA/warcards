@@ -354,7 +354,7 @@ const SUPPORT_FREE = [
 const SUPPORT_FOE = [];
 
 /* ===================== СОСТОЯНИЕ ===================== */
-let uid = 1, game = null, setup = null;
+let uid = 1, game = null, setup = null, winDismissed = false;
 function actionsFor(c){ return c<=3?1 : (c<=6?2:3); }
 function manaForRound(r){ return Math.min(5 + (r-1)*2, 10); }   // старт 5, +2 за раунд, потолок 10
 function makeCard(def, faction){
@@ -373,7 +373,7 @@ function defaultSetup(){
 }
 
 function startGame(){
-  uid=1;
+  uid=1; winDismissed=false;
   game={
     testMode:document.getElementById('testMode').checked,
     round:0, attacker:'me', phase:'deploy', active:'me',
@@ -409,13 +409,14 @@ function startRound(){
   if(game.round>1){ draw('me',1); draw('foe',1); }
   game.phase='deploy'; game.active=game.attacker; game.selected=null; game.targets={};
   logMsg(`<b>Раунд ${game.round}.</b> Атакует ${sideName(game.attacker)}. Мана: ${game.me.manaMax}.`);
+  maybeSkipDeploy();
   render();
 }
 function onAction(){
   if(game.phase==='deploy'){
     game[game.active].passed=true;
     if(game[opp(game.active)].passed){ enterAttackPhase(); }
-    else{ game.active=opp(game.active); }
+    else{ game.active=opp(game.active); maybeSkipDeploy(); }
     render();
   }else if(game.phase==='attack'){
     const n=Object.values(game.targets).reduce((s,a)=>s+a.length,0);
@@ -424,6 +425,22 @@ function onAction(){
   }
 }
 function enterAttackPhase(){ game.phase='attack'; game.selected=null; game.targets={}; logMsg(`Фаза боя. ${sideName(game.attacker)} назначает цели.`); }
+function canDeploy(side){
+  const p=game[side];
+  if(p.board.length>=6) return false;                       // поле занято
+  if(p.hand.some(u=> game.testMode || u.def.c<=p.mana)) return true;   // есть карта по карману
+  if(p.support.length>0) return true;                       // есть поддержка (призыв бесплатный)
+  return false;
+}
+function maybeSkipDeploy(){
+  let guard=0;
+  while(game.phase==='deploy' && !canDeploy(game.active) && guard++<4){
+    game[game.active].passed=true;
+    logMsg(`${sideName(game.active)}: нечего нанимать — фаза найма пропущена.`);
+    if(game[opp(game.active)].passed) enterAttackPhase();
+    else game.active=opp(game.active);
+  }
+}
 
 /* ===================== КЛИКИ ===================== */
 function onCardClick(side, zone, u){
@@ -624,8 +641,9 @@ function render(){
     if(Object.values(game.targets).some(arr=>arr.some(s=>s.t==='cmd'))) defB.classList.add('cmdtargeted');
     if(game.selected!=null){ const A=find(game.attacker, game.selected); if(A && (A.kw.has('r') || aliveCount(opp(game.attacker))===0)) defB.classList.add('cantarget'); }
   }
+  document.getElementById('log').innerHTML = (game.log||[]).slice(0,60).map(x=>'• '+x).join('<br>');   // история ходов (в т.ч. у клиентов)
   renderPhase();
-  if(game.result && game.phase==='over' && !document.getElementById('winOverlay').classList.contains('show')) showWin(game.result.who, game.result.reason);
+  if(game.result && game.phase==='over' && !winDismissed && !document.getElementById('winOverlay').classList.contains('show')) showWin(game.result.who, game.result.reason);
   if(net.mode==='host') broadcastState();
 }
 function handHidden(side){
@@ -904,7 +922,7 @@ function lobbyOffline(){ net.mode='off'; net.role=null; net.side=null; applyRole
 document.getElementById('actionBtn').onclick=()=>dispatch({k:'act'});
 document.getElementById('undoBtn').onclick=()=>dispatch({k:'undo'});
 document.getElementById('newBtn').onclick=()=>{ document.getElementById('winOverlay').classList.remove('show'); openSetup(); };
-document.getElementById('winNew').onclick=()=>{ document.getElementById('winOverlay').classList.remove('show'); if(net.mode==='client'){ closeWin(); } else openSetup(); };
+document.getElementById('winNew').onclick=()=>{ winDismissed=true; document.getElementById('winOverlay').classList.remove('show'); if(net.mode!=='client') openSetup(); };
 document.getElementById('setupStart').onclick=()=>{ setup=readSetupInputs(); document.getElementById('setupOverlay').classList.remove('show'); startGame(); };
 document.getElementById('setupDefaults').onclick=()=>{ setup=defaultSetup(); openSetup(); };
 document.getElementById('gmEye').onchange=render;
@@ -916,7 +934,7 @@ document.getElementById('rulesClose').onclick=()=>document.getElementById('rules
 document.getElementById('rulesOverlay').onclick=e=>{ if(e.target.id==='rulesOverlay') e.currentTarget.classList.remove('show'); };
 document.getElementById('lobbyBtn').onclick=openLobby;
 
-function closeWin(){ document.getElementById('winOverlay').classList.remove('show'); }
+function closeWin(){ winDismissed=true; document.getElementById('winOverlay').classList.remove('show'); }
 
 fillRulesKw();
 setup=defaultSetup();
