@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Война за Хакон</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root{
+    --gold:#c9a24a; --gold-dim:#7a5f2a; --bronze:#8a6a3a;
+    --ink:#e9ddc4; --muted:#9aa6b3; --line:#2c3a48;
+    --free:#1f3a4a; --foe:#3a1f2a; --blood2:#b3302a;
+    --shadow:0 10px 30px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(1400px 700px at 50% -20%, #25394b 0%, transparent 60%),
+      radial-gradient(1000px 600px at 50% 120%, #0c1620 0%, transparent 60%),
+      linear-gradient(#0c131c, #090e15);
+    color:var(--ink);font-family:"Trebuchet MS","Segoe UI",Tahoma,sans-serif;user-select:none;
+  }
+  h1,h2,h3{font-family:Georgia,"Times New Roman",serif;letter-spacing:.04em;margin:0}
+
+  /* снег */
+  .snow{position:fixed;inset:0;pointer-events:none;z-index:0}
+  .snow i{position:absolute;inset:-20% 0 0 0;background-repeat:repeat;will-change:transform}
+  .snow .s1{background-image:
+      radial-gradient(2.4px 2.4px at 30px 40px,rgba(255,255,255,.9),transparent),
+      radial-gradient(2px 2px at 130px 90px,rgba(255,255,255,.8),transparent),
+      radial-gradient(2.6px 2.6px at 200px 160px,rgba(255,255,255,.85),transparent),
+      radial-gradient(2px 2px at 90px 210px,rgba(255,255,255,.7),transparent),
+      radial-gradient(2.2px 2.2px at 240px 30px,rgba(255,255,255,.8),transparent);
+    background-size:280px 280px;opacity:.7;animation:snow 11s linear infinite}
+  .snow .s2{background-image:
+      radial-gradient(1.6px 1.6px at 60px 70px,rgba(255,255,255,.7),transparent),
+      radial-gradient(1.4px 1.4px at 170px 140px,rgba(255,255,255,.6),transparent),
+      radial-gradient(1.8px 1.8px at 220px 220px,rgba(255,255,255,.65),transparent),
+      radial-gradient(1.5px 1.5px at 120px 20px,rgba(255,255,255,.6),transparent);
+    background-size:230px 230px;opacity:.45;animation:snow 19s linear infinite}
+  @keyframes snow{from{transform:translateY(0)}to{transform:translateY(280px)}}
+  .topbar,.layout{position:relative;z-index:1}
+
+  /* topbar */
+  .topbar{position:relative;display:flex;align-items:center;gap:14px;padding:10px 18px;min-height:58px;
+    background:linear-gradient(#101824,#0a0f16);border-bottom:2px solid var(--gold-dim);box-shadow:var(--shadow);justify-content:flex-end}
+  .title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+  .title b{font-size:24px;color:var(--gold);text-shadow:0 1px 0 #000;font-family:Georgia,serif;letter-spacing:.06em}
+  .title small{display:block;font-size:11px;color:var(--muted);letter-spacing:.24em}
+  .controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .btn{cursor:pointer;border:1px solid var(--gold-dim);background:linear-gradient(#1a2532,#10161f);color:var(--ink);
+    padding:8px 14px;border-radius:8px;font-size:13px;letter-spacing:.03em;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);transition:.12s}
+  .btn:hover{border-color:var(--gold);color:#fff;transform:translateY(-1px)}
+  .btn.primary{background:linear-gradient(#7a1f1a,#4a120f);border-color:#b3302a;font-weight:bold}
+  .btn.primary:hover{background:linear-gradient(#9a2a22,#62160f)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .btn.small{padding:5px 9px;font-size:12px}
+  label.toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer}
+
+  /* layout: поддержка | основное | лог */
+  .layout{display:flex;gap:12px;align-items:flex-start;max-width:1720px;margin:0 auto;padding:10px 12px}
+  .supportcol{flex:0 0 188px;width:188px;display:flex;flex-direction:column;gap:6px}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .logpanel{position:sticky;top:10px;flex:0 0 300px;width:300px;background:linear-gradient(#0c131c,#0a0f16);
+    border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;overflow:hidden}
+  .logpanel h3{color:var(--gold);font-size:14px;padding:10px 14px;border-bottom:1px solid var(--line);letter-spacing:.08em}
+  .log{flex:1;overflow:auto;padding:8px 14px;font-size:12px;color:#bcc7d2;line-height:1.55}
+  .log b{color:var(--gold)} .log .dmg{color:#ff8a7a}
+
+  .phasebar{display:flex;align-items:center;justify-content:center;gap:12px;padding:9px;
+    background:linear-gradient(#101824,#0a0f16);border:1px solid var(--gold-dim);border-radius:10px}
+  .phasebar .phase{font-family:Georgia,serif;color:var(--gold);font-size:16px}
+  .phasebar .who{font-size:12px;color:var(--muted)}
+  .hint{font-size:12.5px;color:var(--muted);text-align:center;margin:0 auto 2px}
+  .hint b{color:var(--gold)}
+
+  .side-banner{display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);transition:.15s}
+  .side-banner.enemy{background:linear-gradient(90deg,var(--foe),transparent)}
+  .side-banner.player{background:linear-gradient(90deg,var(--free),transparent)}
+  .side-banner.cantarget{cursor:pointer;border-color:var(--blood2);box-shadow:0 0 0 2px var(--blood2),0 0 18px rgba(179,48,42,.5)}
+  .side-banner.cmdtargeted{border-color:#e0a030;box-shadow:0 0 0 2px #e0a030,0 0 16px rgba(224,160,48,.45)}
+  .commander{display:flex;align-items:center;gap:10px}
+  .crest{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:22px;border:2px solid var(--gold-dim);background:radial-gradient(#243240,#0c1219)}
+  .cmd-name{font-family:Georgia,serif;font-size:16px}
+  .hp{font-size:13px}
+  .hpbar{width:180px;height:13px;border:1px solid #000;border-radius:7px;background:#10171f;overflow:hidden;margin-top:3px}
+  .hpbar > i{display:block;height:100%;background:linear-gradient(#c23,#7a1f1a);transition:width .3s}
+  .deckcount{font-size:11px;color:var(--muted);margin-left:6px}
+  .mana{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap;max-width:340px;justify-content:flex-end}
+  .pip{width:15px;height:15px;border-radius:50%;border:1px solid #1a3a5a;background:#0c1622}
+  .pip.full{background:radial-gradient(#9ad9ff,#1f6fae);border-color:#9ad9ff;box-shadow:0 0 6px #2f9fff88}
+
+  .rowlabel{font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;margin:2px 4px}
+  .board{min-height:222px;border:1px dashed var(--line);border-radius:12px;padding:12px;display:flex;gap:12px;flex-wrap:wrap;align-content:flex-start;background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+  .suppfield{min-height:120px;border:1px dashed #4a5a3a;border-radius:12px;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-content:flex-start;
+    background:linear-gradient(180deg,rgba(120,200,120,.05),transparent)}
+  .suppfield.foe{border-color:#5a3a4a;background:linear-gradient(180deg,rgba(200,120,140,.05),transparent)}
+  .hand{border-top:2px solid var(--gold-dim);margin-top:6px;padding:14px 6px 6px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;min-height:250px}
+
+  /* card */
+  .card{width:178px;height:250px;border-radius:13px;position:relative;cursor:pointer;background:linear-gradient(160deg,#1b2330,#0e131b);
+    border:2px solid var(--bronze);box-shadow:var(--shadow);transition:transform .12s,box-shadow .12s,border-color .12s;overflow:hidden;flex:0 0 auto}
+  .card.mini{width:158px;height:222px}
+  .card.supp{width:158px;height:222px}
+  .card:hover{transform:translateY(-6px);box-shadow:0 16px 30px rgba(0,0,0,.75);z-index:5}
+  .card.free{border-color:#3f6e88}
+  .card.foe{border-color:#8a4a55}
+  .card.support{border-color:#5aa0b0}
+  .card.unaffordable{filter:grayscale(.5) brightness(.75)}
+  .card.selected{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold),0 0 20px rgba(201,162,74,.55)}
+  .card.attacking{border-color:#b3302a;box-shadow:0 0 0 3px #b3302a,0 0 18px rgba(179,48,42,.6)}
+  .card.targeted{border-color:#e0a030;box-shadow:0 0 0 3px #e0a030,0 0 18px rgba(224,160,48,.6)}
+  .card .cost{position:absolute;top:-2px;left:-2px;width:36px;height:36px;border-radius:0 0 13px 0;background:radial-gradient(#2f7fae,#0f3a5a);
+    border:2px solid #9ad9ff;border-top:0;border-left:0;display:grid;place-items:center;font-weight:bold;font-size:18px;color:#eaf6ff;z-index:7}
+  .card .actbadge{position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:7;background:rgba(20,10,6,.85);
+    border:1px solid var(--gold-dim);border-radius:10px;font-size:12px;font-weight:bold;color:#ffe0a8;padding:1px 8px;white-space:nowrap}
+  .card .art{height:120px;margin:5px;border-radius:9px;display:grid;place-items:center;font-size:54px;border:1px solid #0008;position:relative;overflow:hidden}
+  .card.mini .art,.card.supp .art{height:104px;font-size:46px}
+  .card .kwrow{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:3px;z-index:3}
+  .kw{font-size:15px;line-height:1;filter:drop-shadow(0 1px 1px #000)}
+  .card .name{text-align:center;font-family:Georgia,serif;font-size:14px;line-height:1.12;padding:3px 5px 0;color:#f1e6cb;min-height:32px;display:flex;align-items:center;justify-content:center}
+  .card .type{text-align:center;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+  .card .stats{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:space-around;padding:0 6px;font-family:Georgia,serif;z-index:7}
+  .stat{display:flex;align-items:center;gap:2px;font-size:17px;font-weight:bold;text-shadow:0 1px 2px #000;padding:1px 6px;border-radius:7px;background:rgba(0,0,0,.62)}
+  .stat.atk{color:#ffb27a} .stat.hp{color:#ff9b9b} .stat.def{color:#9fd6ff}
+  .stat.buffed{color:#7CFC00} .stat.hurt{color:#ff5a5a}
+  .artimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:4;border-radius:10px}
+  .imgoverlay{position:absolute;inset:0;z-index:5;pointer-events:none}
+  .kwcol{position:absolute;left:4px;top:42px;display:flex;flex-direction:column;gap:4px;z-index:6}
+  .kwcol .kw{background:rgba(8,12,18,.78);border:1px solid #0008;border-radius:6px;padding:2px 4px;font-size:14px}
+  .statbar{position:absolute;left:0;right:0;bottom:5px;display:flex;justify-content:space-around;gap:4px;z-index:6;padding:0 5px}
+  .statbar .stat{font-size:16px;padding:1px 7px;background:rgba(0,0,0,.8)}
+
+  /* spotlight */
+  #spotlight{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(4,8,12,.6);opacity:0;pointer-events:none;transition:opacity .25s}
+  #spotlight.show{opacity:1}
+  .spotcard{transform:scale(.5);transition:transform .35s cubic-bezier(.2,1.5,.4,1)}
+  #spotlight.show .spotcard{transform:scale(2.2)}
+  .spotcap{position:absolute;bottom:9%;left:0;right:0;text-align:center;font-family:Georgia,serif;color:#ffe9b8;font-size:22px;text-shadow:0 2px 8px #000}
+  .spotcap small{display:block;font-size:15px;color:#bcd;letter-spacing:.04em;margin-top:4px}
+
+  /* inspector */
+  #inspector{position:fixed;inset:0;z-index:88;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(4,8,12,.74)}
+  #inspector.show{display:flex}
+  .inspbox{display:flex;gap:20px;align-items:center;max-width:97vw}
+  .inspinfo,.inspflavor{width:280px;background:linear-gradient(#111a24,#0a0f16);border:1px solid var(--gold-dim);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+  .inspinfo h2,.inspflavor h2{color:var(--gold);font-size:19px;margin-bottom:4px}
+  .inspinfo .itype{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+  .inspinfo .istats{display:flex;flex-wrap:wrap;gap:10px;font-family:Georgia,serif;font-size:18px;margin-bottom:12px}
+  .inspinfo .istats .atk{color:#ffb27a}.inspinfo .istats .def{color:#9fd6ff}.inspinfo .istats .hp{color:#ff9b9b}.inspinfo .istats .mn{color:#9ad9ff}.inspinfo .istats .ac{color:#ffe0a8}
+  .inspinfo h4,.inspflavor h4{color:var(--gold);font-size:13px;margin:8px 0 6px;letter-spacing:.05em}
+  .inspkw{display:flex;gap:8px;align-items:flex-start;margin-bottom:9px;font-size:12.5px;color:#cdd6df;line-height:1.4}
+  .inspkw .ic{font-size:18px;flex:0 0 auto}
+  .inspkw b{color:#ffe0a8}
+  .inspnone{color:var(--muted);font-size:12.5px;font-style:italic}
+  .inspflavor .flav{font-style:italic;color:#d8cdb4;font-size:13.5px;line-height:1.6}
+  .insphint{margin-top:12px;color:var(--muted);font-size:11px;border-top:1px solid var(--line);padding-top:8px}
+  .inspcardwrap{width:366px;height:514px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .inspcardwrap .card{transform:scale(2.05)}
+
+  /* toast & modal */
+  .toast{position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:95;background:linear-gradient(#1a2532,#10161f);border:2px solid var(--gold);color:var(--ink);
+    padding:13px 22px;border-radius:12px;font-family:Georgia,serif;font-size:17px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.3s;text-align:center}
+  .toast.show{opacity:1}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;place-items:center;z-index:96;overflow:auto}
+  .overlay.show{display:grid}
+  .modal{max-width:760px;width:94%;background:linear-gradient(#111a24,#0a0f16);border:2px solid var(--gold-dim);border-radius:14px;padding:24px;box-shadow:var(--shadow);margin:20px auto}
+  .modal h2{color:var(--gold);margin-bottom:8px}
+  .modal ul{font-size:13.5px;line-height:1.75;color:#bcc7d2;padding-left:18px}
+  .modal .kw{font-size:16px}
+  .winwrap{text-align:center}
+  .winwrap h1{font-size:32px;color:var(--gold);margin-bottom:10px}
+  /* setup */
+  .setupcols{display:flex;gap:18px;flex-wrap:wrap}
+  .setupcol{flex:1;min-width:300px}
+  .setupcol h3{color:var(--gold);font-size:15px;margin:6px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  .setupcol h4{color:#9ad9ff;font-size:12px;letter-spacing:.08em;margin:10px 0 4px}
+  .setrow{display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:8px}
+  .setrow:hover{background:rgba(255,255,255,.03)}
+  .setrow .nm{flex:1;font-size:13px}
+  .setrow .st{font-size:11px;color:var(--muted)}
+  .setrow input{width:54px;background:#0c131c;border:1px solid var(--gold-dim);color:var(--ink);border-radius:6px;padding:5px;font-size:14px;text-align:center}
+  .setuptotal{margin-top:10px;font-size:12px;color:var(--muted)}
+  .lbinput{background:#0c131c;border:1px solid var(--gold-dim);color:var(--ink);border-radius:8px;padding:9px;font-size:14px}
+  #lobbyStatus{margin-top:10px;font-size:13px;color:#9ad9ff;min-height:18px}
+</style>
+</head>
+<body>
+
+<div class="snow"><i class="s1"></i><i class="s2"></i></div>
+
+<div class="topbar">
+  <div class="title"><b>Война за Хакон</b><small>КАРТОЧНАЯ ВОЙНА АРМИЙ</small></div>
+  <div class="controls">
+    <span id="roleTag" style="display:none;font-size:12px;color:#9ad9ff;border:1px solid var(--gold-dim);border-radius:8px;padding:4px 8px"></span>
+    <label class="toggle" id="gmEyeLabel"><input type="checkbox" id="gmEye" checked> Глаз ГМ</label>
+    <label class="toggle" id="testLabel"><input type="checkbox" id="testMode"> 🧪 ∞ маны</label>
+    <button class="btn small" id="rulesBtn">Правила</button>
+    <button class="btn small" id="newBtn">⚙ Колоды / Новая игра</button>
+    <button class="btn small" id="lobbyBtn">🌐 Онлайн</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- ЛЕВО: поле поддержки -->
+  <aside class="supportcol">
+    <div class="rowlabel">Поддержка врага</div>
+    <div class="suppfield foe" id="foeSupport"></div>
+    <div style="flex:1"></div>
+    <div class="rowlabel">Поддержка: Вольный народ</div>
+    <div class="suppfield" id="meSupport"></div>
+  </aside>
+
+  <!-- ЦЕНТР -->
+  <div class="main">
+    <div class="phasebar">
+      <span class="phase" id="phaseTitle">—</span>
+      <span class="who" id="phaseWho"></span>
+      <button class="btn primary" id="actionBtn">Готово</button>
+      <button class="btn small" id="undoBtn" style="display:none">Сбросить цели</button>
+    </div>
+    <div class="hint" id="hint"></div>
+
+    <div class="side-banner enemy" id="foeBanner">
+      <div class="commander">
+        <div class="crest">☠</div>
+        <div>
+          <div class="cmd-name" id="foeName">Враги Хакона</div>
+          <div class="hp">❤ <span id="foeHp">20</span>/20 <span class="deckcount" id="foeDeck"></span></div>
+          <div class="hpbar"><i id="foeHpBar" style="width:100%"></i></div>
+        </div>
+      </div>
+      <div class="mana" id="foeMana"></div>
+    </div>
+    <div class="rowlabel">Рука врага</div>
+    <div class="hand" id="foeHand" style="min-height:0"></div>
+    <div class="rowlabel">Поле врага</div>
+    <div class="board" id="foeBoard"></div>
+
+    <div class="rowlabel">Поле Вольного народа</div>
+    <div class="board" id="meBoard"></div>
+    <div class="side-banner player" id="meBanner">
+      <div class="commander">
+        <div class="crest">⚔</div>
+        <div>
+          <div class="cmd-name" id="meName">Вольный народ — Хакон</div>
+          <div class="hp">❤ <span id="meHp">20</span>/20 <span class="deckcount" id="meDeck"></span></div>
+          <div class="hpbar"><i id="meHpBar" style="width:100%"></i></div>
+        </div>
+      </div>
+      <div class="mana" id="meMana"></div>
+    </div>
+    <div class="rowlabel">Твоя рука</div>
+    <div class="hand" id="meHand"></div>
+  </div>
+
+  <!-- ПРАВО: история -->
+  <aside class="logpanel">
+    <h3>📜 ИСТОРИЯ ХОДОВ</h3>
+    <div class="log" id="log"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="spotlight"></div>
+<div id="inspector"></div>
+
+<!-- Lobby / онлайн -->
+<div class="overlay" id="lobbyOverlay">
+  <div class="modal" style="max-width:460px">
+    <h2>🌐 Война за Хакон — подключение</h2>
+    <p style="font-size:13px;color:#bcc7d2">Игра по интернету. ДМ создаёт комнату и называет её код игрокам. Геовульф и Верден заходят по этому коду и вместе командуют Вольным народом против ДМ.</p>
+    <div id="lobbyForm"></div>
+    <div id="lobbyStatus"></div>
+  </div>
+</div>
+
+<!-- Setup modal -->
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <h2>⚙ Настройка колод перед битвой</h2>
+    <p style="font-size:13px;color:#bcc7d2">Укажи, сколько копий каждой карты получит сторона. Карты конечны: если вся армия стороны уничтожена — она проигрывает. Войска поддержки призываются один раз за игру.</p>
+    <div class="setupcols" id="setupCols"></div>
+    <div class="setuptotal" id="setupTotal"></div>
+    <div style="text-align:right;margin-top:14px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" id="setupDefaults">Сбросить к стандарту</button>
+      <button class="btn primary" id="setupStart">⚔ Начать битву</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rules modal -->
+<div class="overlay" id="rulesOverlay">
+  <div class="modal">
+    <h2>Война за Хакон — правила</h2>
+    <p style="font-size:13.5px;color:#bcc7d2">Снизь здоровье вражеского Командира до 0 <b>или</b> уничтожь всю его армию. Жетон атаки чередуется. Мана раунда = номер раунда (макс. 10).</p>
+    <p style="font-size:13.5px;color:#bcc7d2"><b>Статы:</b> ⚔ Урон · 🛡 Защита (броня) · ❤ ХП. Урон по ХП = Урон − Защита (мин. 0). ХП не восстанавливается между раундами.</p>
+    <p style="font-size:13.5px;color:#bcc7d2"><b>Действия за раунд</b> (зависит от стоимости): 1–3 маны → 1 действие, 4–6 → 2 действия, 7–10 → 3 действия. Отряд может атаковать несколько раз и разные цели.</p>
+    <p style="font-size:13.5px;color:#bcc7d2"><b>Атака:</b> атакующий выбирает цель каждому отряду — вражеский отряд или Командир (по Командиру — только если у врага нет отрядов, либо есть «Дальний бой»).</p>
+    <p style="font-size:13px;color:#9aa6b3"><b>Поддержка</b> — призывается раз за игру, сразу выходит на поле готовой к бою. <b>ПКМ по карте</b> — увеличить и прочитать описание/способности.</p>
+    <h3 style="color:var(--gold);font-size:15px;margin:10px 0 4px">Ключевые слова</h3>
+    <ul id="rulesKw"></ul>
+    <div style="text-align:right;margin-top:12px"><button class="btn" id="rulesClose">Закрыть</button></div>
+  </div>
+</div>
+
+<!-- Win modal -->
+<div class="overlay" id="winOverlay">
+  <div class="modal winwrap">
+    <h1 id="winTitle">Победа!</h1>
+    <p id="winText" style="color:#bcc7d2"></p>
+    <button class="btn primary" id="winNew">Новая битва</button>
+  </div>
+</div>
+
+<script>
+/* ===================== ДАННЫЕ ===================== */
+const KW_ICON = {q:'⚡',o:'💥',b:'🛡️',r:'🏹',t:'🪨',f:'🔥'};
+const KW_NAME = {q:'Стремительный',o:'Натиск',b:'Барьер',r:'Дальний бой',t:'Стойкость',f:'Ярость'};
+const KW_DESC = {
+  q:'Может атаковать в тот же раунд, когда выведен на поле.',
+  o:'Излишек урона сверх ХП цели проходит вражескому Командиру.',
+  b:'Поглощает первую атаку по этому отряду за раунд.',
+  r:'Может бить вражеского Командира напрямую, даже если у врага есть отряды.',
+  t:'Получает на 1 меньше урона от каждой атаки (сверх защиты).',
+  f:'Выжив после полученного урона, навсегда получает +1 ⚔ к урону.'
+};
+// c=стоимость, a=урон, d=защита(броня), h=хп
+const FREE_CARDS = [
+  {n:'Крестьяне Вольного народа', t:'Пехота', c:2, a:2, d:1, h:3, k:['f'], art:'🪓', col:'#274a3a', img:'art/peasants.png',
+   flavor:'Простой народ северных земель. Свободные люди, скреплённые кровью, землёй и долгом. Не обучены, но яростны и не отступят.'},
+  {n:'Лучники Вольного народа', t:'Лучники', c:3, a:3, d:0, h:2, k:['r'], art:'🏹', col:'#274a3a', img:'art/archers.png',
+   flavor:'Опытные стрелки, выросшие на свободе. Они знают каждый склон и каждую тропу, и их стрелы находят цель из любой тени.'},
+  {n:'Верный хирд Асвейг', t:'Элита', c:6, a:6, d:4, h:6, k:['o','t'], art:'🛡️', col:'#2b2b34', elite:true, copies:2, img:'art/asveig.png',
+   flavor:'Элитные воины, присягнувшие Асвейг в верности кровью и сталью. В тяжёлой броне и под её предводительством они сметают всё на своём пути.'},
+  {n:'Геовульф и Верден', t:'Предводители', c:6, a:5, d:7, h:9, k:['q','t'], art:'⚔️', col:'#4a3a22', elite:true, copies:1, img:'art/geowulf.png',
+   flavor:'Авантюристы-побратимы, что хотят вернуть Хакону былое величие.'},
+];
+const FOE_CARDS = [
+  {n:'Предатели Хакона', t:'Изменники', c:5, a:4, d:3, h:5, k:['t'], art:'🗡️', col:'#3a1f2a', copies:2, img:'art/traitors.png',
+   flavor:'Когда-то они сидели за одним столом с ярлами, делили честь и клятвы. Теперь ради золота и власти они продают север и его народ врагам.'},
+  {n:'Лесные северные бандиты', t:'Засада', c:2, a:2, d:2, h:3, k:['q'], art:'🪓', col:'#26331f', img:'art/bandits.png',
+   flavor:'Жестокие разбойники, скрывающиеся в дремучих лесах севера. Нападают из засады, знают каждую тропу и не знают пощады к чужакам.'},
+  {n:'Головорезы чёрной тропы', t:'Разбойники', c:3, a:3, d:1, h:3, k:['f'], art:'⚔️', col:'#3a1f2a', img:'art/cutthroats.png',
+   flavor:'Отчаявшиеся убийцы и беглые каторжники. Их клинки ржавы, но жажда наживы остра как никогда.'},
+  {n:'Засадные стрелки', t:'Лучники', c:3, a:4, d:0, h:2, k:['r'], art:'🏹', col:'#26331f', img:'art/ambushers.png',
+   flavor:'Они видят путника раньше, чем путник замечает лес.'},
+];
+const SUPPORT_FREE = [
+  {n:'Воители Чаевого Устюга', t:'Отряд поддержки', c:4, a:3, d:3, h:6, k:['t'], art:'🐴', col:'#22384a', support:true, copies:1, img:'art/ustyug.png',
+   flavor:'Закалённые северными ветрами и морскими бурями. Эти воины идут в бой, чтобы отстоять интересы Чаевого Устюга и его земли любой ценой.'},
+];
+const SUPPORT_FOE = [];
+
+/* ===================== СОСТОЯНИЕ ===================== */
+let uid = 1, game = null, setup = null;
+function actionsFor(c){ return c<=3?1 : (c<=6?2:3); }
+function manaForRound(r){ return Math.min(5 + (r-1)*2, 10); }   // старт 5, +2 за раунд, потолок 10
+function makeCard(def, faction){
+  return {uid:uid++, def, faction, atk:def.a, hp:def.h, maxHp:def.h, maxActions:actionsFor(def.c),
+          kw:new Set(def.k), barrierUsed:false, justPlayed:true, summonedThisRound:false, dead:false, tookDamage:0};
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function buildPile(cards, faction, counts, shuf){
+  let pile=[];
+  cards.forEach(c=>{ const n=(counts&&counts[c.n]!=null)?counts[c.n]:(c.copies||3); for(let i=0;i<n;i++) pile.push(makeCard(c,faction)); });
+  return shuf? shuffle(pile) : pile;
+}
+function defaultSetup(){
+  const m=(arr)=>{const o={};arr.forEach(c=>o[c.n]=(c.copies!=null?c.copies:(c.support?1:3)));return o;};
+  return {free:m(FREE_CARDS), foe:m(FOE_CARDS), supFree:m(SUPPORT_FREE), supFoe:m(SUPPORT_FOE)};
+}
+
+function startGame(){
+  uid=1;
+  game={
+    testMode:document.getElementById('testMode').checked,
+    round:0, attacker:'me', phase:'deploy', active:'me',
+    me:{name:'Вольный народ — Хакон', hp:20, mana:0, manaMax:0, hand:[], board:[],
+        deck:buildPile(FREE_CARDS,'free',setup.free,true), support:buildPile(SUPPORT_FREE,'free',setup.supFree,false), passed:false},
+    foe:{name:'Враги Хакона', hp:20, mana:0, manaMax:0, hand:[], board:[],
+        deck:buildPile(FOE_CARDS,'foe',setup.foe,true), support:buildPile(SUPPORT_FOE,'foe',setup.supFoe,false), passed:false},
+    selected:null, targets:{}, log:[],
+  };
+  closeInspector();
+  draw('me',4); draw('foe',4);
+  startRound();
+}
+function draw(side,n){ const p=game[side]; for(let i=0;i<n;i++){ if(p.deck.length && p.hand.length<10) p.hand.push(p.deck.pop()); } }
+function opp(s){return s==='me'?'foe':'me';}
+function find(side,id){return game[side].board.find(u=>u.uid===id);}
+function aliveCount(side){return game[side].board.filter(u=>!u.dead).length;}
+function sideName(s){return s==='me'?'Вольный народ':'Враг';}
+function effActions(u){ return u.summonedThisRound ? 1 : u.maxActions; }
+function usedActions(u){ return (game.targets[u.uid]||[]).length; }
+
+/* ===================== РАУНД ===================== */
+function startRound(){
+  game.round++;
+  game.attacker = (game.round%2===1)?'me':'foe';
+  ['me','foe'].forEach(s=>{
+    game[s].manaMax=manaForRound(game.round);
+    game[s].mana=game[s].manaMax;
+    if(game.testMode){ game[s].manaMax=999; game[s].mana=999; }
+    game[s].passed=false;
+    game[s].board.forEach(u=>{u.justPlayed=false;u.barrierUsed=false;u.summonedThisRound=false;});
+  });
+  if(game.round>1){ draw('me',1); draw('foe',1); }
+  game.phase='deploy'; game.active=game.attacker; game.selected=null; game.targets={};
+  logMsg(`<b>Раунд ${game.round}.</b> Атакует ${sideName(game.attacker)}. Мана: ${game.me.manaMax}.`);
+  render();
+}
+function onAction(){
+  if(game.phase==='deploy'){
+    game[game.active].passed=true;
+    if(game[opp(game.active)].passed){ enterAttackPhase(); }
+    else{ game.active=opp(game.active); }
+    render();
+  }else if(game.phase==='attack'){
+    const n=Object.values(game.targets).reduce((s,a)=>s+a.length,0);
+    if(n===0){ logMsg('Атакующий не пошёл в бой.'); endCombatAndRound(); }
+    else{ resolveCombat(); }
+  }
+}
+function enterAttackPhase(){ game.phase='attack'; game.selected=null; game.targets={}; logMsg(`Фаза боя. ${sideName(game.attacker)} назначает цели.`); }
+
+/* ===================== КЛИКИ ===================== */
+function onCardClick(side, zone, u){
+  if(game.phase==='deploy'){
+    if(zone==='hand' && side===game.active) playCard(side,u);
+    else if(zone==='support' && side===game.active) summonSupport(side,u);
+    return;
+  }
+  if(game.phase==='attack'){
+    const atk=game.attacker, def=opp(atk);
+    if(side===atk && zone==='board'){
+      if(u.justPlayed && !u.kw.has('q')){ toast('Только что выведенный отряд не готов к атаке'); return; }
+      if(game.selected===u.uid){ delete game.targets[u.uid]; game.selected=null; }   // повторный клик — сброс целей отряда
+      else game.selected=u.uid;
+      render(); return;
+    }
+    if(side===def && zone==='board' && game.selected!=null){ assignTarget({t:'unit', uid:u.uid}); return; }
+  }
+}
+function assignTarget(spec){
+  const A=find(game.attacker, game.selected); if(!A) return;
+  if(usedActions(A) >= effActions(A)){ toast('У отряда не осталось действий'); return; }
+  (game.targets[A.uid]=game.targets[A.uid]||[]).push(spec);
+  if(usedActions(A) >= effActions(A)) game.selected=null;   // действия исчерпаны
+  render();
+}
+function onCommanderClick(side){
+  if(game.phase!=='attack' || side!==opp(game.attacker) || game.selected==null) { if(game.phase==='attack'&&game.selected==null) toast('Сначала выбери свой отряд'); return; }
+  const A=find(game.attacker, game.selected); if(!A) return;
+  if(!A.kw.has('r') && aliveCount(side)>0){ toast('Сначала разбей вражеские отряды (или нужен «Дальний бой»)'); return; }
+  assignTarget({t:'cmd'});
+}
+function playCard(side,u){
+  const p=game[side];
+  if(!game.testMode && u.def.c>p.mana){ toast('Недостаточно маны'); return; }
+  if(p.board.length>=6){ toast('На поле максимум 6 отрядов'); return; }
+  if(!game.testMode) p.mana-=u.def.c;
+  p.hand=p.hand.filter(x=>x.uid!==u.uid);
+  u.justPlayed=true; p.board.push(u); p.passed=false;
+  logMsg(`${sideName(side)} выводит <b>${u.def.n}</b> (${u.def.c} маны).`);
+  render(); showSpotlight(u, side);
+}
+function summonSupport(side,u){
+  const p=game[side];
+  if(p.board.length>=6){ toast('На поле максимум 6 отрядов'); return; }
+  p.support=p.support.filter(x=>x.uid!==u.uid);   // раз за игру
+  u.justPlayed=false; u.summonedThisRound=true;   // готов к бою сразу (1 действие в этот раунд)
+  p.board.push(u); p.passed=false;
+  logMsg(`${sideName(side)} призывает поддержку: <b>${u.def.n}</b>! Готов к бою.`);
+  render(); showSpotlight(u, side);
+}
+
+/* ===================== БОЙ ===================== */
+function applyDamage(u, atk){
+  if(u.kw.has('b') && !u.barrierUsed){ u.barrierUsed=true; logMsg(`🛡️ Барьер <b>${u.def.n}</b> поглощает удар.`); return 0; }
+  let dmg = Math.max(0, atk - u.def.d - (u.kw.has('t')?1:0));
+  if(dmg<=0) return 0;
+  u.hp-=dmg; u.tookDamage+=dmg; if(u.hp<=0) u.dead=true;
+  return dmg;
+}
+function strike(A,B,defSide){
+  const hpBefore=B.hp;
+  const dealt=applyDamage(B, A.atk);
+  logMsg(`<b>${A.def.n}</b> (⚔${A.atk}) бьёт <b>${B.def.n}</b>: <span class="dmg">−${dealt} ❤</span> (броня ${B.def.d}).`);
+  if(A.kw.has('o') && B.dead){ const ex=dealt-hpBefore; if(ex>0){ dealCommander(defSide, ex); logMsg(`💥 Натиск <b>${A.def.n}</b>: ${ex} по Командиру.`); } }
+}
+function resolveCombat(){
+  if(game.phase==='resolving') return;
+  game.phase='resolving';
+  const atk=game.attacker, def=opp(atk);
+  const involved=new Set();
+  for(const aUid in game.targets){
+    const A=find(atk, +aUid); if(!A) continue;
+    for(const spec of game.targets[aUid]){
+      if(A.dead) break;
+      involved.add(A);
+      if(spec.t==='cmd'){ dealCommander(def, A.atk); logMsg(`<b>${A.def.n}</b> бьёт по Командиру: <span class="dmg">${A.atk}</span>.`); }
+      else{
+        let B=find(def, spec.uid);
+        if(!B || B.dead){ if(aliveCount(def)===0){ dealCommander(def, A.atk); logMsg(`<b>${A.def.n}</b> добивает Командира: <span class="dmg">${A.atk}</span>.`); } else logMsg(`<b>${A.def.n}</b>: цель уже пала.`); continue; }
+        involved.add(B); strike(A,B,def);
+      }
+    }
+  }
+  involved.forEach(u=>{
+    if(!u.dead && u.tookDamage>0 && u.kw.has('f')){ u.atk++; logMsg(`🔥 <b>${u.def.n}</b> в ярости: +1 ⚔ (теперь ${u.atk}).`); }
+    u.tookDamage=0;
+  });
+  removeDead(); render();
+  setTimeout(endCombatAndRound, 450);
+}
+function dealCommander(side, dmg){ game[side].hp=Math.max(0,game[side].hp-dmg); logMsg(`<span class="dmg">−${dmg} ❤</span> Командиру (${sideName(side)}).`); }
+function removeDead(){
+  ['me','foe'].forEach(s=>{
+    game[s].board.forEach(u=>{ if(u.dead) logMsg(`☠ <b>${u.def.n}</b> пал.`); });
+    game[s].board=game[s].board.filter(u=>!u.dead);
+  });
+}
+function endCombatAndRound(){ if(checkWin()) return; game.selected=null; game.targets={}; startRound(); }
+function armyGone(side){ const g=game[side]; return g.deck.length===0 && g.hand.length===0 && g.board.length===0 && g.support.length===0; }
+function checkWin(){
+  const meLost = game.me.hp<=0 || armyGone('me');
+  const foeLost = game.foe.hp<=0 || armyGone('foe');
+  if(meLost||foeLost){
+    game.phase='over';
+    const who = (meLost&&foeLost)?'draw':(foeLost?'me':'foe');
+    let reason;
+    if(who==='me') reason = game.foe.hp<=0?'Командир врага пал.':'Армия врага уничтожена полностью.';
+    else if(who==='foe') reason = game.me.hp<=0?'Командир Вольного народа пал.':'Армия Вольного народа уничтожена полностью.';
+    else reason='Обе армии пали.';
+    game.result={who, reason};
+    showWin(who, reason); return true;
+  }
+  return false;
+}
+
+/* ===================== РЕНДЕР КАРТ ===================== */
+function cardEl(u, side, zone){
+  const el=document.createElement('div');
+  el.className='card '+(u.def.support?'support':(u.faction==='free'?'free':'foe'))+(zone==='board'?' mini':(zone==='support'?' supp':''));
+  el.__unit=u; el.__side=side;
+  const p=game[side];
+  if((zone==='hand'||zone==='support') && game.phase==='deploy' && side===game.active && !game.testMode && u.def.c>p.mana) el.classList.add('unaffordable');
+  let attackerOwn=false;
+  if(game.phase==='attack'){
+    if(side===game.attacker && zone==='board'){
+      attackerOwn=true;
+      if(game.selected===u.uid) el.classList.add('selected');
+      if((game.targets[u.uid]||[]).length) el.classList.add('attacking');
+    }
+    if(side===opp(game.attacker) && zone==='board'){
+      if(Object.values(game.targets).some(arr=>arr.some(s=>s.t==='unit'&&s.uid===u.uid))) el.classList.add('targeted');
+    }
+  }
+  const kwHtml=[...u.kw].map(k=>`<span class="kw" title="${KW_NAME[k]}">${KW_ICON[k]}</span>`).join('');
+  const atkBuff=u.atk>u.def.a, hpHurt=u.hp<u.maxHp;
+  const acts=effActions(u);
+  let actHtml='';
+  if(attackerOwn) actHtml=`<div class="actbadge">⚔ ${acts-usedActions(u)}/${acts}</div>`;
+  else if(acts>1 && zone!=='support') actHtml=`<div class="actbadge">⚔ ×${acts}</div>`;
+  else if(zone==='support') actHtml=`<div class="actbadge">поддержка</div>`;
+  el.innerHTML=`
+    <div class="cost">${u.def.c}</div>
+    ${actHtml}
+    <div class="kwrow">${kwHtml}</div>
+    <div class="art" style="background:radial-gradient(120% 120% at 50% 20%, ${u.def.col}, #0a0d12)">${u.def.art}</div>
+    <div class="name">${u.def.n}</div>
+    <div class="type">${u.def.t}${u.def.elite?' · 🏵️':''}</div>
+    <div class="stats">
+      <span class="stat atk${atkBuff?' buffed':''}">⚔${u.atk}</span>
+      <span class="stat hp${hpHurt?' hurt':''}">❤${u.hp}</span>
+      <span class="stat def">🛡${u.def.d}</span>
+    </div>`;
+  if(u.def.img){
+    const sb=`<span class="stat atk${atkBuff?' buffed':''}">⚔${u.atk}</span>`+
+             `<span class="stat hp${hpHurt?' hurt':''}">❤${u.hp}</span>`+
+             `<span class="stat def">🛡${u.def.d}</span>`;
+    const ov=document.createElement('div'); ov.className='imgoverlay';
+    ov.innerHTML=`<div class="cost">${u.def.c}</div>${actHtml}<div class="kwcol">${kwHtml}</div><div class="statbar">${sb}</div>`;
+    const img=document.createElement('img'); img.className='artimg'; img.src=u.def.img; img.alt=u.def.n;
+    img.onerror=function(){ this.remove(); ov.remove(); };
+    el.appendChild(img); el.appendChild(ov);
+  }
+  el.onclick=()=>dispatch({k:'click', side, zone, uid:u.uid});
+  return el;
+}
+
+function renderMana(elId, p){
+  const box=document.getElementById(elId); box.innerHTML='';
+  if(game.testMode){ box.innerHTML='<span style="font-size:16px;color:#9ad9ff;letter-spacing:.05em">🧪 ∞ маны</span>'; return; }
+  const total=Math.max(p.manaMax,1);
+  for(let i=0;i<total;i++){ const d=document.createElement('div'); d.className='pip'+(i<p.mana?' full':''); box.appendChild(d); }
+  const lbl=document.createElement('span'); lbl.style.cssText='font-size:11px;color:#9aa6b3;margin-left:4px'; lbl.textContent=`${p.mana}/${p.manaMax}`; box.appendChild(lbl);
+}
+
+function render(){
+  if(!game) return;
+  document.getElementById('meHp').textContent=game.me.hp;
+  document.getElementById('foeHp').textContent=game.foe.hp;
+  document.getElementById('meHpBar').style.width=(game.me.hp/20*100)+'%';
+  document.getElementById('foeHpBar').style.width=(game.foe.hp/20*100)+'%';
+  document.getElementById('meDeck').textContent=`· колода ${game.me.deck.length} · рука ${game.me.hand.length}`;
+  document.getElementById('foeDeck').textContent=`· колода ${game.foe.deck.length} · рука ${game.foe.hand.length}`;
+  renderMana('meMana',game.me); renderMana('foeMana',game.foe);
+
+  const fill=(id,side,zone,list)=>{ const box=document.getElementById(id); box.innerHTML=''; list.forEach(u=>box.appendChild(cardEl(u,side,zone))); };
+  fill('meBoard','me','board',game.me.board);
+  fill('foeBoard','foe','board',game.foe.board);
+  fill('meSupport','me','support',game.me.support);
+  fill('foeSupport','foe','support',game.foe.support);
+  renderHand('meHand','me',game.me.hand);
+  renderHand('foeHand','foe',game.foe.hand);
+
+  const foeB=document.getElementById('foeBanner'), meB=document.getElementById('meBanner');
+  foeB.classList.remove('cantarget','cmdtargeted'); meB.classList.remove('cantarget','cmdtargeted');
+  if(game.phase==='attack'){
+    const defB = game.attacker==='me'? foeB : meB;
+    if(Object.values(game.targets).some(arr=>arr.some(s=>s.t==='cmd'))) defB.classList.add('cmdtargeted');
+    if(game.selected!=null){ const A=find(game.attacker, game.selected); if(A && (A.kw.has('r') || aliveCount(opp(game.attacker))===0)) defB.classList.add('cantarget'); }
+  }
+  renderPhase();
+  if(game.result && game.phase==='over' && !document.getElementById('winOverlay').classList.contains('show')) showWin(game.result.who, game.result.reason);
+  if(net.mode==='host') broadcastState();
+}
+function handHidden(side){
+  if(net.mode==='off'){ return side==='foe' && !document.getElementById('gmEye').checked; }
+  if(side===net.side) return false;                                   // своя рука всегда видна
+  if(net.role==='dm' && document.getElementById('gmEye').checked) return false; // ДМ может подсматривать
+  return true;
+}
+function renderHand(elId, side, list){
+  const box=document.getElementById(elId); box.innerHTML='';
+  if(handHidden(side)){
+    list.forEach(()=>{ const b=document.createElement('div'); b.className='card '+(side==='foe'?'foe':'free');
+      b.style.cssText+='display:grid;place-items:center;background:repeating-linear-gradient(45deg,#141a22,#141a22 8px,#1c2530 8px,#1c2530 16px)';
+      b.innerHTML='<div style="font-size:40px;opacity:.5">'+(side==='foe'?'☠':'⚔')+'</div>'; box.appendChild(b); });
+  } else {
+    list.forEach(u=>box.appendChild(cardEl(u,side,'hand')));
+  }
+}
+function renderPhase(){
+  const pt=document.getElementById('phaseTitle'), pw=document.getElementById('phaseWho');
+  const ab=document.getElementById('actionBtn'), hint=document.getElementById('hint');
+  const undo=document.getElementById('undoBtn'); undo.style.display='none'; ab.disabled=false;
+  if(game.phase==='deploy'){
+    pt.textContent=`Раунд ${game.round} · Найм`; pw.textContent=`Нанимает: ${sideName(game.active)}`;
+    ab.textContent='Готово (завершить найм)';
+    hint.innerHTML=`Кликай карты в руке <b>${sideName(game.active)}</b> или отряд поддержки слева. Закончил — «Готово».`;
+  }else if(game.phase==='attack'){
+    const n=Object.values(game.targets).reduce((s,a)=>s+a.length,0);
+    pt.textContent=`Раунд ${game.round} · Атака`; pw.textContent=`Атакует: ${sideName(game.attacker)}`;
+    ab.textContent = n? `В бой! (${n})` : 'Пропустить бой'; undo.style.display='inline-block';
+    hint.innerHTML=`<b>${sideName(game.attacker)}</b>: кликни свой отряд, затем <span style="color:#e0a030">вражеский отряд</span> или <span style="color:#b3302a">баннер Командира</span>. Сильные отряды бьют несколько раз. Потом «В бой!».`;
+  }else if(game.phase==='resolving'){ pt.textContent=`Раунд ${game.round} · Разрешение боя`; pw.textContent=''; ab.disabled=true; hint.innerHTML='Войска сходятся...'; }
+  else if(game.phase==='over'){ pt.textContent='Битва окончена'; pw.textContent=''; ab.disabled=true; hint.textContent=''; }
+  // онлайн: блокируем чужой ход
+  if(net.mode!=='off' && (game.phase==='deploy'||game.phase==='attack')){
+    const ts = game.phase==='deploy'?game.active:game.attacker;
+    if(net.side!==ts){ ab.disabled=true; pw.textContent='Ходит: '+sideName(ts); hint.innerHTML='⏳ Ожидайте свой ход…'; }
+  }
+}
+
+/* ===================== INSPECTOR (ПКМ) ===================== */
+let inspectorOpen=false;
+function openInspector(u, side){
+  const insp=document.getElementById('inspector'); insp.innerHTML='';
+  const box=document.createElement('div'); box.className='inspbox';
+  const acts=u.maxActions;
+  const info=document.createElement('div'); info.className='inspinfo';
+  const kwBlock = u.kw.size
+    ? [...u.kw].map(k=>`<div class="inspkw"><span class="ic">${KW_ICON[k]}</span><div><b>${KW_NAME[k]}</b><br>${KW_DESC[k]}</div></div>`).join('')
+    : '<div class="inspnone">Без особых способностей.</div>';
+  info.innerHTML=`
+    <h2>${u.def.n}</h2>
+    <div class="itype">${u.def.t}${u.def.elite?' · Элита':''}${u.def.support?' · Поддержка':''}</div>
+    <div class="istats"><span class="atk">⚔ ${u.atk}</span><span class="def">🛡 ${u.def.d}</span><span class="hp">❤ ${u.hp}/${u.maxHp}</span><span class="mn">⬡ ${u.def.c}</span><span class="ac">⚔×${acts} действ.</span></div>
+    <h4>СПОСОБНОСТИ</h4>${kwBlock}
+    <div class="insphint">ПКМ ещё раз — закрыть</div>`;
+  const wrap=document.createElement('div'); wrap.className='inspcardwrap';
+  const c=cardEl(u, side, 'hand'); c.style.cursor='default'; c.onclick=null; wrap.appendChild(c);
+  const flav=document.createElement('div'); flav.className='inspflavor';
+  flav.innerHTML=`<h4>ОПИСАНИЕ</h4><div class="flav">${u.def.flavor||'—'}</div>`;
+  box.appendChild(info); box.appendChild(wrap); box.appendChild(flav);
+  insp.appendChild(box); insp.classList.add('show'); inspectorOpen=true;
+}
+function closeInspector(){ const insp=document.getElementById('inspector'); insp.classList.remove('show'); insp.innerHTML=''; inspectorOpen=false; }
+document.addEventListener('contextmenu', e=>{
+  const card = (e.target && e.target.closest) ? e.target.closest('.card') : null;
+  if(inspectorOpen || card){
+    e.preventDefault();
+    if(inspectorOpen){ closeInspector(); return; }
+    if(card && card.__unit){ openInspector(card.__unit, card.__side); }
+  }
+});
+
+/* ===================== UI ===================== */
+function logMsg(html){ game.log.unshift(html); if(game.log.length>80) game.log.length=80; document.getElementById('log').innerHTML=game.log.slice(0,60).map(x=>'• '+x).join('<br>'); }
+let toastT;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1500); }
+let spT;
+function showSpotlight(u, side){
+  const sp=document.getElementById('spotlight'); sp.innerHTML='';
+  const c=cardEl(u, side, 'hand'); c.style.cursor='default'; c.onclick=null;
+  const wrap=document.createElement('div'); wrap.className='spotcard'; wrap.appendChild(c);
+  const cap=document.createElement('div'); cap.className='spotcap';
+  cap.innerHTML=`${u.def.n}<small>⚔${u.atk} · 🛡${u.def.d} · ❤${u.maxHp}${u.kw.size?'  ·  '+[...u.kw].map(k=>KW_ICON[k]+' '+KW_NAME[k]).join(' · '):''}</small>`;
+  sp.appendChild(wrap); sp.appendChild(cap);
+  sp.classList.remove('show'); requestAnimationFrame(()=>requestAnimationFrame(()=>sp.classList.add('show')));
+  clearTimeout(spT); spT=setTimeout(()=>sp.classList.remove('show'), 1500);
+  netSpotlight(u.uid, side);   // показать карту и игрокам
+}
+function showWin(who, reason){
+  const o=document.getElementById('winOverlay'), tt=document.getElementById('winTitle'), tx=document.getElementById('winText');
+  if(who==='me'){ tt.textContent='⚔ Победа Вольного народа!'; }
+  else if(who==='foe'){ tt.textContent='☠ Враги Хакона торжествуют'; }
+  else { tt.textContent='Взаимное уничтожение'; }
+  tx.textContent=reason||''; o.classList.add('show');
+}
+function fillRulesKw(){
+  document.getElementById('rulesKw').innerHTML=Object.keys(KW_NAME).map(k=>`<li><span class="kw">${KW_ICON[k]}</span> <b>${KW_NAME[k]}</b> — ${KW_DESC[k]}</li>`).join('');
+}
+
+/* ===================== SETUP ===================== */
+function openSetup(){
+  const cols=document.getElementById('setupCols');
+  const rowsFor=(cards, key)=> cards.map((c,i)=>{
+    const val=(setup[key]&&setup[key][c.n]!=null)?setup[key][c.n]:(c.copies!=null?c.copies:(c.support?1:3));
+    return `<div class="setrow"><div><div class="nm">${c.def?c.def.n:c.n}</div><div class="st">⚔${c.a} 🛡${c.d} ❤${c.h} · ${c.c} маны · ${actionsFor(c.c)} действ.</div></div>
+      <input type="number" min="0" max="20" value="${val}" data-key="${key}" data-name="${c.n}"></div>`;
+  }).join('');
+  cols.innerHTML=`
+    <div class="setupcol">
+      <h3>⚔ Вольный народ (игрок)</h3>
+      ${rowsFor(FREE_CARDS,'free')}
+      <h4>ПОДДЕРЖКА (раз за игру)</h4>
+      ${SUPPORT_FREE.length?rowsFor(SUPPORT_FREE,'supFree'):'<div class="st" style="padding:4px 6px">нет</div>'}
+    </div>
+    <div class="setupcol">
+      <h3>☠ Враги Хакона (ГМ)</h3>
+      ${rowsFor(FOE_CARDS,'foe')}
+      <h4>ПОДДЕРЖКА (раз за игру)</h4>
+      ${SUPPORT_FOE.length?rowsFor(SUPPORT_FOE,'supFoe'):'<div class="st" style="padding:4px 6px">нет</div>'}
+    </div>`;
+  updateSetupTotal();
+  cols.querySelectorAll('input').forEach(inp=>inp.oninput=updateSetupTotal);
+  document.getElementById('setupOverlay').classList.add('show');
+}
+function readSetupInputs(){
+  const s={free:{},foe:{},supFree:{},supFoe:{}};
+  document.querySelectorAll('#setupCols input').forEach(inp=>{
+    const v=Math.max(0,Math.min(20, parseInt(inp.value||'0',10)||0));
+    s[inp.dataset.key][inp.dataset.name]=v;
+  });
+  return s;
+}
+function updateSetupTotal(){
+  const s=readSetupInputs();
+  const sum=o=>Object.values(o).reduce((a,b)=>a+b,0);
+  const free=sum(s.free)+sum(s.supFree), foe=sum(s.foe)+sum(s.supFoe);
+  document.getElementById('setupTotal').textContent=`Всего карт — Вольный народ: ${free} · Враги: ${foe}`;
+}
+
+/* ===================== СЕТЬ (онлайн, PeerJS) ===================== */
+const ROLE_SIDE = {dm:'foe', geowulf:'me', verden:'me'};
+const ROLE_NAME = {dm:'ДМ — Враги Хакона', geowulf:'Геовульф (Вольный народ)', verden:'Верден (Вольный народ)'};
+let net = {mode:'off', role:null, side:null, peer:null, conns:[], conn:null, room:null};
+// PeerJS id принимает только латиницу/цифры → кодируем код комнаты (в т.ч. кириллицу) в hex, детерминированно
+function roomToId(code){ code=(code||'').trim().toLowerCase(); let h=''; for(let i=0;i<code.length;i++) h+=code.charCodeAt(i).toString(16); return 'vzh'+h; }
+
+function dispatch(intent){
+  if(net.mode==='client'){ if(net.conn && net.conn.open) net.conn.send({t:'intent', role:net.role, intent}); return; }
+  applyIntent(intent, net.mode==='host' ? 'dm' : null);   // оффлайн: role=null (без ограничений по стороне)
+}
+function unitByUid(side, zone, uid){
+  const p=game[side]; const list = zone==='board'?p.board : zone==='hand'?p.hand : zone==='support'?p.support : [];
+  return list.find(u=>u.uid===uid);
+}
+function applyIntent(intent, role){
+  if(!game) return;
+  const it=intent;
+  if(role!=null && (it.k==='click'||it.k==='cmd'||it.k==='act'||it.k==='undo')){
+    const ts = game.phase==='deploy'?game.active : (game.phase==='attack'?game.attacker : null);
+    if(ts==null || ROLE_SIDE[role]!==ts) return;   // не твой ход
+  }
+  if(it.k==='click'){ const u=unitByUid(it.side,it.zone,it.uid); if(u) onCardClick(it.side,it.zone,u); }
+  else if(it.k==='cmd'){ onCommanderClick(it.side); }
+  else if(it.k==='act'){ onAction(); }
+  else if(it.k==='undo'){ game.targets={}; game.selected=null; render(); }
+}
+function serializeGame(){ return JSON.stringify(game, (k,v)=> v instanceof Set ? {__set:[...v]} : v); }
+function deserializeGame(str){ game = JSON.parse(str, (k,v)=> (v&&v.__set)? new Set(v.__set) : v); }
+function broadcastState(){ const s=serializeGame(); net.conns.forEach(c=>{ if(c.open) c.send({t:'state', state:s}); }); }
+function netSpotlight(uid, side){ if(net.mode==='host') net.conns.forEach(c=>{ if(c.open) c.send({t:'spot', uid, side}); }); }
+function findCardByUid(side, uid){ const p=game[side]; return p.board.concat(p.hand,p.support).find(u=>u.uid===uid); }
+
+function startHost(room){
+  if(typeof Peer==='undefined'){ setLobbyStatus('Не загрузилась сетевая библиотека. Проверь интернет и обнови страницу.'); return; }
+  setLobbyStatus('Создание комнаты…');
+  const peer=new Peer(roomToId(room), {debug:1});
+  net.peer=peer; net.mode='host'; net.role='dm'; net.side='foe'; net.room=room;
+  peer.on('open', ()=>{
+    applyRoleUI(); closeLobby(); setup=defaultSetup(); startGame(); openSetup();
+    toast('Комната «'+room+'» создана. Сообщи код игрокам.');
+  });
+  peer.on('connection', conn=>{
+    net.conns.push(conn);
+    conn.on('open', ()=>{ conn.send({t:'state', state:serializeGame()}); logMsg(`🌐 Игрок подключился (${conn.peer.slice(0,8)}…).`); render(); });
+    conn.on('data', msg=>{ if(msg && msg.t==='intent'){ applyIntent(msg.intent, msg.role); } });
+    conn.on('close', ()=>{ net.conns=net.conns.filter(c=>c!==conn); logMsg('🌐 Игрок отключился.'); });
+  });
+  peer.on('error', e=>{
+    if(e.type==='unavailable-id'){ setLobbyStatus('Код «'+room+'» уже занят — придумай другой.'); }
+    else setLobbyStatus('Сетевая ошибка: '+e.type);
+    net.mode='off'; try{peer.destroy();}catch(_){}   // можно повторить
+  });
+}
+function joinAs(role, room){
+  if(typeof Peer==='undefined'){ setLobbyStatus('Не загрузилась сетевая библиотека. Проверь интернет и обнови страницу.'); return; }
+  const peer=new Peer(undefined,{debug:1});
+  net.peer=peer; net.mode='client'; net.role=role; net.side=ROLE_SIDE[role]; net.room=room;
+  peer.on('open', ()=>{
+    setLobbyStatus('Подключение к комнате «'+room+'»…');
+    const conn=peer.connect(roomToId(room), {reliable:true}); net.conn=conn;
+    conn.on('open', ()=>{ applyRoleUI(); closeLobby(); toast('Подключено как '+ROLE_NAME[role]); });
+    conn.on('data', msg=>{
+      if(!msg) return;
+      if(msg.t==='state'){ deserializeGame(msg.state); render(); }
+      else if(msg.t==='spot'){ const u=findCardByUid(msg.side, msg.uid); if(u) showSpotlight(u, msg.side); }
+    });
+    conn.on('close', ()=>{ setLobbyStatus('Связь с ДМ потеряна.'); openLobby(); });
+    conn.on('error', ()=>{ setLobbyStatus('Не удалось подключиться. Проверь код.'); });
+  });
+  peer.on('error', e=>{
+    if(e.type==='peer-unavailable') setLobbyStatus('Комната «'+room+'» не найдена. Проверь код у ДМ.');
+    else setLobbyStatus('Сетевая ошибка: '+e.type);
+  });
+}
+function applyRoleUI(){
+  const isDM = (net.mode==='off' || net.role==='dm');
+  document.getElementById('newBtn').style.display = isDM?'':'none';
+  document.getElementById('testLabel').style.display = isDM?'':'none';
+  document.getElementById('gmEyeLabel').style.display = (net.role==='dm'||net.mode==='off')?'':'none';
+  const tag=document.getElementById('roleTag');
+  if(net.mode==='off'){ tag.style.display='none'; }
+  else { tag.style.display=''; tag.textContent=(net.mode==='host'?'🟢 ХОСТ · ':'🟢 ')+ROLE_NAME[net.role]+(net.room?' · комната '+net.room:''); }
+}
+function setTestMode(v){
+  game.testMode=v;
+  ['me','foe'].forEach(s=>{ if(v){ game[s].mana=999; game[s].manaMax=999; } else { game[s].manaMax=manaForRound(game.round); game[s].mana=Math.min(game[s].mana,game[s].manaMax); } });
+  render();
+}
+
+/* ===================== ЛОББИ ===================== */
+function openLobby(){ document.getElementById('lobbyOverlay').classList.add('show'); lobbyHome(); }
+function closeLobby(){ document.getElementById('lobbyOverlay').classList.remove('show'); }
+function setLobbyStatus(s){ document.getElementById('lobbyStatus').textContent=s||''; }
+function lobbyHome(){
+  document.getElementById('lobbyForm').innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+      <button class="btn" onclick="lobbyRole('dm')">🎲 ДМ (Враги Хакона) — нужен пароль</button>
+      <button class="btn" onclick="lobbyRole('geowulf')">⚔️ Геовульф (Вольный народ)</button>
+      <button class="btn" onclick="lobbyRole('verden')">⚔️ Верден (Вольный народ)</button>
+      <button class="btn" onclick="lobbyOffline()">🖥 На одном ПК (оффлайн)</button>
+    </div>`;
+  setLobbyStatus('');
+}
+function lobbyRole(role){
+  let html;
+  if(role==='dm'){
+    html=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+      <input id="lbPass" type="password" placeholder="Пароль ДМ" class="lbinput">
+      <input id="lbRoom" class="lbinput" placeholder="Код комнаты (придумай свой)" value="hakon${Math.floor(Math.random()*900+100)}">
+      <button class="btn primary" onclick="lobbyCreate()">Создать комнату</button>
+      <button class="btn" onclick="lobbyHome()">← назад</button></div>`;
+  }else{
+    html=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+      <div style="color:#9ad9ff;font-size:13px">${ROLE_NAME[role]}</div>
+      <input id="lbRoom" class="lbinput" placeholder="Код комнаты от ДМ">
+      <button class="btn primary" onclick="lobbyJoin('${role}')">Подключиться</button>
+      <button class="btn" onclick="lobbyHome()">← назад</button></div>`;
+  }
+  document.getElementById('lobbyForm').innerHTML=html; setLobbyStatus('');
+}
+function lobbyCreate(){
+  if((document.getElementById('lbPass').value||'').trim()!=='Лео'){ setLobbyStatus('Неверный пароль ДМ.'); return; }
+  const room=(document.getElementById('lbRoom').value||'').trim().toLowerCase().replace(/\s+/g,'');
+  if(!room){ setLobbyStatus('Введите код комнаты.'); return; }
+  startHost(room);
+}
+function lobbyJoin(role){
+  const room=(document.getElementById('lbRoom').value||'').trim().toLowerCase().replace(/\s+/g,'');
+  if(!room){ setLobbyStatus('Введите код комнаты.'); return; }
+  joinAs(role, room);
+}
+function lobbyOffline(){ net.mode='off'; net.role=null; net.side=null; applyRoleUI(); closeLobby(); setup=defaultSetup(); startGame(); openSetup(); }
+
+/* ===================== КНОПКИ ===================== */
+document.getElementById('actionBtn').onclick=()=>dispatch({k:'act'});
+document.getElementById('undoBtn').onclick=()=>dispatch({k:'undo'});
+document.getElementById('newBtn').onclick=()=>{ document.getElementById('winOverlay').classList.remove('show'); openSetup(); };
+document.getElementById('winNew').onclick=()=>{ document.getElementById('winOverlay').classList.remove('show'); if(net.mode==='client'){ closeWin(); } else openSetup(); };
+document.getElementById('setupStart').onclick=()=>{ setup=readSetupInputs(); document.getElementById('setupOverlay').classList.remove('show'); startGame(); };
+document.getElementById('setupDefaults').onclick=()=>{ setup=defaultSetup(); openSetup(); };
+document.getElementById('gmEye').onchange=render;
+document.getElementById('foeBanner').onclick=()=>dispatch({k:'cmd', side:'foe'});
+document.getElementById('meBanner').onclick=()=>dispatch({k:'cmd', side:'me'});
+document.getElementById('testMode').onchange=function(){ if(!game) return; setTestMode(this.checked); };
+document.getElementById('rulesBtn').onclick=()=>document.getElementById('rulesOverlay').classList.add('show');
+document.getElementById('rulesClose').onclick=()=>document.getElementById('rulesOverlay').classList.remove('show');
+document.getElementById('rulesOverlay').onclick=e=>{ if(e.target.id==='rulesOverlay') e.currentTarget.classList.remove('show'); };
+document.getElementById('lobbyBtn').onclick=openLobby;
+
+function closeWin(){ document.getElementById('winOverlay').classList.remove('show'); }
+
+fillRulesKw();
+setup=defaultSetup();
+startGame();   // стартовая партия (видна за лобби)
+applyRoleUI();
+openLobby();   // выбор роли / онлайн
+</script>
+</body>
+</html>
